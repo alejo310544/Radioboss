@@ -1,4 +1,3 @@
-
 name: Generar APK de Radio Boss Mobile
 
 on:
@@ -25,26 +24,29 @@ jobs:
         with:
           gradle-version: '8.0'
 
-      - name: Reconstruir Archivos Gradle en la Raiz Real
+      - name: Reconstruir Archivos Gradle en la Ruta Profunda Correcta
         run: |
-          # 1. Intentar buscar el nombre de paquete real en el Java existente
-          PACKAGE_NAME=$(grep -r "package " app/src/main/java/ | head -n 1 | awk '{print $2}' | sed 's/;//')
+          # 1. Definir la ruta real exacta que está leyendo tu proyecto
+          R_PATH="Radioboss"
+
+          # 2. Intentar buscar el nombre de paquete real en el Java existente
+          PACKAGE_NAME=$(grep -r "package " $R_PATH/app/src/main/java/ | head -n 1 | awk '{print $2}' | sed 's/;//')
           if [ -z "$PACKAGE_NAME" ]; then
             PACKAGE_NAME="com.radioboss.mobile"
           fi
           echo "El paquete detectado es: $PACKAGE_NAME"
 
-          # 2. Generar settings.gradle perfecto en la raiz principal
-          echo "pluginManagement { repositories { google(); mavenCentral(); gradlePluginPortal() } }" > settings.gradle
-          echo "dependencyResolutionManagement { repositoriesMode.set(RepositoriesMode.PREFER_SETTINGS); repositories { google(); mavenCentral() } }" >> settings.gradle
-          echo "rootProject.name = 'Radioboss'" >> settings.gradle
-          echo "include ':app'" >> settings.gradle
+          # 3. Generar settings.gradle perfecto en la subcarpeta
+          echo "pluginManagement { repositories { google(); mavenCentral(); gradlePluginPortal() } }" > $R_PATH/settings.gradle
+          echo "dependencyResolutionManagement { repositoriesMode.set(RepositoriesMode.PREFER_SETTINGS); repositories { google(); mavenCentral() } }" >> $R_PATH/settings.gradle
+          echo "rootProject.name = 'Radioboss'" >> $R_PATH/settings.gradle
+          echo "include ':app'" >> $R_PATH/settings.gradle
 
-          # 3. Generar build.gradle raiz perfecto en la raiz principal
-          echo "buildscript { repositories { google(); mavenCentral() }; dependencies { classpath 'com.android.tools.build:gradle:8.0.2' } }" > build.gradle
-          echo "allprojects { repositories { google(); mavenCentral() } }" >> build.gradle
+          # 4. Generar build.gradle raíz perfecto en la subcarpeta
+          echo "buildscript { repositories { google(); mavenCentral() }; dependencies { classpath 'com.android.tools.build:gradle:8.0.2' } }" > $R_PATH/build.gradle
+          echo "allprojects { repositories { google(); mavenCentral() } }" >> $R_PATH/build.gradle
 
-          # 4. Generar app/build.gradle limpio en el modulo app correcto
+          # 5. Generar app/build.gradle limpio en la subcarpeta
           echo "plugins { id 'com.android.application' }
           android {
               namespace '$PACKAGE_NAME'
@@ -57,14 +59,15 @@ jobs:
               implementation 'androidx.appcompat:appcompat:1.6.1'
               implementation 'com.google.android.material:material:1.9.0'
               implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
-          }" > app/build.gradle
+          }" > $R_PATH/app/build.gradle
 
-          # 5. Crear archivo gradle.properties de compatibilidad
-          echo "android.useAndroidX=true" > gradle.properties
-          echo "android.enableJetifier=true" >> gradle.properties
+          # 6. Crear archivo gradle.properties de compatibilidad en la subcarpeta
+          echo "android.useAndroidX=true" > $R_PATH/gradle.properties
+          echo "android.enableJetifier=true" >> $R_PATH/gradle.properties
 
-          # 6. Reescribir el manifest defectuoso en la ruta correcta de la app
-          mkdir -p app/src/main
+          # 7. ELIMINAR EL MANIFEST DAÑADO Y CREAR EL NUEVO EN LA RUTA PROFUNDA (SOLUCIÓN CRÍTICA)
+          rm -f $R_PATH/app/src/main/AndroidManifest.xml
+          mkdir -p $R_PATH/app/src/main
           echo "<?xml version='1.0' encoding='utf-8'?>
           <manifest xmlns:android='http://android.com'>
               
@@ -90,13 +93,15 @@ jobs:
                       </intent-filter>
                   </activity>
               </application>
-          </manifest>" > app/src/main/AndroidManifest.xml
+          </manifest>" > $R_PATH/app/src/main/AndroidManifest.xml
 
-      - name: Compilar APK con Gradle
-        run: gradle assembleDebug --no-daemon
+      - name: Compilar APK con Gradle desde la subcarpeta real
+        run: |
+          cd Radioboss
+          gradle assembleDebug --no-daemon
 
       - name: Subir el archivo APK generado
         uses: actions/upload-artifact@v4
         with:
           name: RadioBossMobile-DebugAPK
-          path: app/build/outputs/apk/debug/app-debug.apk
+          path: Radioboss/app/build/outputs/apk/debug/app-debug.apk
