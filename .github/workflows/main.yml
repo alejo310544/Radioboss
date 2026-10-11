@@ -24,8 +24,21 @@ jobs:
         with:
           gradle-version: '8.0'
 
-      - name: Compilar APK forzando refresco de dependencias
-        run: gradle assembleDebug --refresh-dependencies --no-daemon
+      - name: Corregir archivos gradle de forma automatica
+        run: |
+          # Elimina restricciones estrictas de repositorios si existen en settings.gradle
+          if [ -f settings.gradle ]; then
+            sed -i '/dependencyResolutionManagement/I,/^}/d' settings.gradle
+            echo -e "\npluginManagement { repositories { google(); mavenCentral() } }\ndependencyResolutionManagement { repositoriesMode.set(RepositoriesMode.PREFER_SETTINGS); repositories { google(); mavenCentral() } }" >> settings.gradle
+          fi
+          
+          # Inyecta los repositorios en el archivo build.gradle principal
+          if [ -f build.gradle ]; then
+            echo -e "\nallprojects { repositories { google(); mavenCentral() } }" >> build.gradle
+          fi
+
+      - name: Compilar APK con Gradle
+        run: gradle assembleDebug --no-daemon
 
       - name: Subir el archivo APK generado
         uses: actions/upload-artifact@v4
