@@ -30,70 +30,55 @@ jobs:
           channel: stable
           cache: true
 
-      - name: Instalar herramienta ZIP
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y unzip
+      - name: Instalar unzip
+        run: sudo apt-get update && sudo apt-get install -y unzip
 
       - name: Buscar y extraer ZIP
         shell: bash
         run: |
           set -e
-
-          echo "Buscando archivos ZIP en el repositorio..."
-
-          find . -type f -iname "*.zip" -print
-
-          ZIP_FILE=$(find . -type f -iname "*.zip" \
-            ! -path "./.git/*" -print -quit)
+          ZIP_FILE=$(find . -type f -iname "*.zip" ! -path "./.git/*" -print -quit)
 
           if [ -z "$ZIP_FILE" ]; then
-            echo "::error::No se encontró ningún ZIP."
-            echo "Sube el ZIP de RadioVoz Móvil al repositorio."
+            echo "::error::No se encontró el archivo ZIP."
             exit 1
           fi
 
-          echo "ZIP encontrado: $ZIP_FILE"
-
           mkdir -p project
-
           unzip -o "$ZIP_FILE" -d project
 
-          echo "Contenido extraído:"
-          find project -maxdepth 3 -type f | head -200
-
-      - name: Localizar proyecto Flutter
-        shell: bash
-        run: |
-          set -e
-
-          PUBSPEC=$(find project -name pubspec.yaml \
-            -type f -print -quit)
+          PUBSPEC=$(find project -name pubspec.yaml -type f -print -quit)
 
           if [ -z "$PUBSPEC" ]; then
             echo "::error::El ZIP no contiene pubspec.yaml."
             exit 1
           fi
 
-          PROJECT_DIR=$(dirname "$PUBSPEC")
+          echo "PROJECT_DIR=$(dirname "$PUBSPEC")" >> "$GITHUB_ENV"
 
-          echo "Proyecto Flutter encontrado en: $PROJECT_DIR"
-          echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
-
-      - name: Preparar estructura Android
+      - name: Preparar Android
+        shell: bash
         run: |
-          if [ ! -f "$PROJECT_DIR/android/gradlew" ]; then
-            flutter create \
-              --platforms=android \
-              --org com.radiovoz \
-              "$PROJECT_DIR"
+          set -e
+          cd "$PROJECT_DIR"
+
+          if [ ! -f android/gradlew ]; then
+            flutter create --platforms=android --org com.radiovoz .
           fi
 
-      - name: Descargar dependencias
-        working-directory: .
+          echo "Versiones de Flutter y Java:"
+          flutter --version
+          java -version
+
+      - name: Instalar dependencias
         run: |
           cd "$PROJECT_DIR"
           flutter pub get
+
+      - name: Revisar código Dart
+        run: |
+          cd "$PROJECT_DIR"
+          flutter analyze
 
       - name: Compilar APK
         run: |
@@ -101,6 +86,7 @@ jobs:
           flutter build apk --release
 
       - name: Publicar APK
+        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: RadioVoz-Movil-APK
