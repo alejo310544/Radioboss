@@ -24,35 +24,8 @@ jobs:
         with:
           gradle-version: '8.0'
 
-      - name: Inyectar repositorios globales compatibles
-        run: |
-          mkdir -p ~/.gradle
-          echo "
-          settingsEvaluated { settings ->
-              settings.pluginManagement {
-                  repositories {
-                      google()
-                      mavenCentral()
-                  }
-              }
-              settings.dependencyResolutionManagement {
-                  repositoriesMode.set(RepositoriesMode.PREFER_SETTINGS)
-                  repositories {
-                      google()
-                      mavenCentral()
-                  }
-              }
-          }
-          allprojects {
-              repositories {
-                  google()
-                  mavenCentral()
-              }
-          }
-          " > ~/.gradle/init.gradle
-
-      - name: Compilar APK con Gradle
-        run: gradle assembleDebug --no-daemon --stacktrace
+      - name: Compilar APK forzando refresco de dependencias
+        run: gradle assembleDebug --refresh-dependencies --no-daemon
 
       - name: Subir el archivo APK generado
         uses: actions/upload-artifact@v4
