@@ -1,0 +1,2 @@
+rootProject.name = "RadioBossMobile"
+include ':app'
