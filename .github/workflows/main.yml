@@ -24,25 +24,43 @@ jobs:
         with:
           gradle-version: '8.0'
 
-      - name: Reconstruir Archivos Gradle Limpios e Inteligentes
+      - name: Detectar Ruta Real y Reconstruir Proyecto
         run: |
-          # 1. Detectar el paquete real usando la doble carpeta Radioboss
-          PACKAGE_NAME=$(grep -r "package " Radioboss/app/src/main/java/ | head -n 1 | awk '{print $2}' | sed 's/;//')
+          # 1. Buscar automáticamente dónde está guardado el código de Android
+          REAL_PATH=$(find . -name "MainActivity.java" -exec dirname {} \; | head -n 1)
+          
+          # Ir subiendo niveles para encontrar la raíz del proyecto Android real
+          # (Donde debería estar la carpeta 'app')
+          PROJECT_ROOT=$(echo "$REAL_PATH" | sed 's/\/src\/main\/java.*//')
+          
+          if [ -z "$PROJECT_ROOT" ] || [ "$PROJECT_ROOT" = "." ]; then
+            # Si no se encuentra una subcarpeta, asumimos que está en la raíz o buscamos donde esté 'app'
+            PROJECT_ROOT=$(find . -name "app" -type d -exec dirname {} \; | head -n 1)
+          fi
+          
+          echo "La ruta real del proyecto detectada es: $PROJECT_ROOT"
+          
+          # Guardar la ruta para los siguientes pasos
+          echo "TARGET_DIR=$PROJECT_ROOT" >> $GITHUB_ENV
+
+          # 2. Detectar el nombre del paquete de programación
+          PACKAGE_NAME=$(grep -r "package " $PROJECT_ROOT/app/src/main/java/ | head -n 1 | awk '{print $2}' | sed 's/;//')
           if [ -z "$PACKAGE_NAME" ]; then
             PACKAGE_NAME="com.radioboss.mobile"
           fi
+          echo "El paquete detectado es: $PACKAGE_NAME"
 
-          # 2. Generar settings.gradle perfecto en la raíz profunda
-          echo "pluginManagement { repositories { google(); mavenCentral(); gradlePluginPortal() } }" > Radioboss/settings.gradle
-          echo "dependencyResolutionManagement { repositoriesMode.set(RepositoriesMode.PREFER_SETTINGS); repositories { google(); mavenCentral() } }" >> Radioboss/settings.gradle
-          echo "rootProject.name = 'Radioboss'" >> Radioboss/settings.gradle
-          echo "include ':app'" >> Radioboss/settings.gradle
+          # 3. Generar settings.gradle perfecto en la ruta real
+          echo "pluginManagement { repositories { google(); mavenCentral(); gradlePluginPortal() } }" > $PROJECT_ROOT/settings.gradle
+          echo "dependencyResolutionManagement { repositoriesMode.set(RepositoriesMode.PREFER_SETTINGS); repositories { google(); mavenCentral() } }" >> $PROJECT_ROOT/settings.gradle
+          echo "rootProject.name = 'Radioboss'" >> $PROJECT_ROOT/settings.gradle
+          echo "include ':app'" >> $PROJECT_ROOT/settings.gradle
 
-          # 3. Generar build.gradle raíz perfecto en la ruta profunda
-          echo "buildscript { repositories { google(); mavenCentral() }; dependencies { classpath 'com.android.tools.build:gradle:8.0.2' } }" > Radioboss/build.gradle
-          echo "allprojects { repositories { google(); mavenCentral() } }" >> Radioboss/build.gradle
+          # 4. Generar build.gradle raíz perfecto en la ruta real
+          echo "buildscript { repositories { google(); mavenCentral() }; dependencies { classpath 'com.android.tools.build:gradle:8.0.2' } }" > $PROJECT_ROOT/build.gradle
+          echo "allprojects { repositories { google(); mavenCentral() } }" >> $PROJECT_ROOT/build.gradle
 
-          # 4. Generar app/build.gradle limpio en la ruta profunda
+          # 5. Generar app/build.gradle limpio en la ruta real
           echo "plugins { id 'com.android.application' }
           android {
               namespace '$PACKAGE_NAME'
@@ -55,14 +73,14 @@ jobs:
               implementation 'androidx.appcompat:appcompat:1.6.1'
               implementation 'com.google.android.material:material:1.9.0'
               implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
-          }" > Radioboss/app/build.gradle
+          }" > $PROJECT_ROOT/app/build.gradle
 
-          # 5. Crear el archivo gradle.properties de compatibilidad en la ruta profunda
-          echo "android.useAndroidX=true" > Radioboss/gradle.properties
-          echo "android.enableJetifier=true" >> Radioboss/gradle.properties
+          # 6. Crear archivo gradle.properties de compatibilidad en la ruta real
+          echo "android.useAndroidX=true" > $PROJECT_ROOT/gradle.properties
+          echo "android.enableJetifier=true" >> $PROJECT_ROOT/gradle.properties
 
-          # 6. REESCRIBIR EL MANIFEST DEFECTUOSO EN LA RUTA REAL (CORRECCIÓN CRÍTICA)
-          mkdir -p Radioboss/app/src/main
+          # 7. Reescribir el manifest defectuoso en la ruta real
+          mkdir -p $PROJECT_ROOT/app/src/main
           echo "<?xml version='1.0' encoding='utf-8'?>
           <manifest xmlns:android='http://android.com'>
               
@@ -88,15 +106,15 @@ jobs:
                       </intent-filter>
                   </activity>
               </application>
-          </manifest>" > Radioboss/app/src/main/AndroidManifest.xml
+          </manifest>" > $PROJECT_ROOT/app/src/main/AndroidManifest.xml
 
-      - name: Compilar APK ejecutando desde la subcarpeta correcta
+      - name: Compilar APK desde la carpeta detectada
         run: |
-          cd Radioboss
+          cd ${{ env.TARGET_DIR }}
           gradle assembleDebug --no-daemon
 
       - name: Subir el archivo APK generado
         uses: actions/upload-artifact@v4
         with:
           name: RadioBossMobile-DebugAPK
-          path: Radioboss/app/build/outputs/apk/debug/app-debug.apk
+          path: ${{ env.TARGET_DIR }}/app/build/outputs/apk/debug/app-debug.apk
