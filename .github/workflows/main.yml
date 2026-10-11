@@ -24,18 +24,42 @@ jobs:
         with:
           gradle-version: '8.0'
 
-      - name: Corregir archivos gradle de forma automatica
+      - name: Formatear y Reestructurar archivos Gradle de Raiz
         run: |
-          # Elimina restricciones estrictas de repositorios si existen en settings.gradle
-          if [ -f settings.gradle ]; then
-            sed -i '/dependencyResolutionManagement/I,/^}/d' settings.gradle
-            echo -e "\npluginManagement { repositories { google(); mavenCentral() } }\ndependencyResolutionManagement { repositoriesMode.set(RepositoriesMode.PREFER_SETTINGS); repositories { google(); mavenCentral() } }" >> settings.gradle
-          fi
-          
-          # Inyecta los repositorios en el archivo build.gradle principal
-          if [ -f build.gradle ]; then
-            echo -e "\nallprojects { repositories { google(); mavenCentral() } }" >> build.gradle
-          fi
+          # 1. Reescribir settings.gradle con el orden correcto exacto obligatorio
+          echo "pluginManagement {
+              repositories {
+                  google()
+                  mavenCentral()
+                  gradlePluginPortal()
+              }
+          }
+          dependencyResolutionManagement {
+              repositoriesMode.set(RepositoriesMode.PREFER_SETTINGS)
+              repositories {
+                  google()
+                  mavenCentral()
+              }
+          }
+          rootProject.name = 'Radioboss'
+          include ':app'" > settings.gradle
+
+          # 2. Asegurar repositorios limpios en el build.gradle de la raíz
+          echo "buildscript {
+              repositories {
+                  google()
+                  mavenCentral()
+              }
+              dependencies {
+                  classpath 'com.android.tools.build:gradle:8.0.2'
+              }
+          }
+          allprojects {
+              repositories {
+                  google()
+                  mavenCentral()
+              }
+          }" > build.gradle
 
       - name: Compilar APK con Gradle
         run: gradle assembleDebug --no-daemon
