@@ -26,23 +26,23 @@ jobs:
 
       - name: Reconstruir Archivos Gradle Limpios e Inteligentes
         run: |
-          # 1. Detectar el paquete real del proyecto
-          PACKAGE_NAME=$(grep -r "package " app/src/main/java/ | head -n 1 | awk '{print $2}' | sed 's/;//')
+          # 1. Detectar el paquete real usando la doble carpeta Radioboss
+          PACKAGE_NAME=$(grep -r "package " Radioboss/app/src/main/java/ | head -n 1 | awk '{print $2}' | sed 's/;//')
           if [ -z "$PACKAGE_NAME" ]; then
             PACKAGE_NAME="com.radioboss.mobile"
           fi
 
-          # 2. Generar settings.gradle perfecto
-          echo "pluginManagement { repositories { google(); mavenCentral(); gradlePluginPortal() } }" > settings.gradle
-          echo "dependencyResolutionManagement { repositoriesMode.set(RepositoriesMode.PREFER_SETTINGS); repositories { google(); mavenCentral() } }" >> settings.gradle
-          echo "rootProject.name = 'Radioboss'" >> settings.gradle
-          echo "include ':app'" >> settings.gradle
+          # 2. Generar settings.gradle perfecto en la raíz profunda
+          echo "pluginManagement { repositories { google(); mavenCentral(); gradlePluginPortal() } }" > Radioboss/settings.gradle
+          echo "dependencyResolutionManagement { repositoriesMode.set(RepositoriesMode.PREFER_SETTINGS); repositories { google(); mavenCentral() } }" >> Radioboss/settings.gradle
+          echo "rootProject.name = 'Radioboss'" >> Radioboss/settings.gradle
+          echo "include ':app'" >> Radioboss/settings.gradle
 
-          # 3. Generar build.gradle raíz perfecto
-          echo "buildscript { repositories { google(); mavenCentral() }; dependencies { classpath 'com.android.tools.build:gradle:8.0.2' } }" > build.gradle
-          echo "allprojects { repositories { google(); mavenCentral() } }" >> build.gradle
+          # 3. Generar build.gradle raíz perfecto en la ruta profunda
+          echo "buildscript { repositories { google(); mavenCentral() }; dependencies { classpath 'com.android.tools.build:gradle:8.0.2' } }" > Radioboss/build.gradle
+          echo "allprojects { repositories { google(); mavenCentral() } }" >> Radioboss/build.gradle
 
-          # 4. Generar app/build.gradle limpio sin errores de formato
+          # 4. Generar app/build.gradle limpio en la ruta profunda
           echo "plugins { id 'com.android.application' }
           android {
               namespace '$PACKAGE_NAME'
@@ -55,14 +55,14 @@ jobs:
               implementation 'androidx.appcompat:appcompat:1.6.1'
               implementation 'com.google.android.material:material:1.9.0'
               implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
-          }" > app/build.gradle
+          }" > Radioboss/app/build.gradle
 
-          # 5. Crear el archivo gradle.properties de compatibilidad
-          echo "android.useAndroidX=true" > gradle.properties
-          echo "android.enableJetifier=true" >> gradle.properties
+          # 5. Crear el archivo gradle.properties de compatibilidad en la ruta profunda
+          echo "android.useAndroidX=true" > Radioboss/gradle.properties
+          echo "android.enableJetifier=true" >> Radioboss/gradle.properties
 
-          # 6. REESCRIBIR EL MANIFEST CON LA SINTAXIS CORRECTA (SOLUCIÓN AL ERROR)
-          mkdir -p app/src/main
+          # 6. REESCRIBIR EL MANIFEST DEFECTUOSO EN LA RUTA REAL (CORRECCIÓN CRÍTICA)
+          mkdir -p Radioboss/app/src/main
           echo "<?xml version='1.0' encoding='utf-8'?>
           <manifest xmlns:android='http://android.com'>
               
@@ -88,8 +88,15 @@ jobs:
                       </intent-filter>
                   </activity>
               </application>
-          </manifest>" > app/src/main/AndroidManifest.xml
+          </manifest>" > Radioboss/app/src/main/AndroidManifest.xml
 
-      - name: Compilar APK con Gradle
-        run: gradle assembleDebug --no-daemon
+      - name: Compilar APK ejecutando desde la subcarpeta correcta
+        run: |
+          cd Radioboss
+          gradle assembleDebug --no-daemon
 
+      - name: Subir el archivo APK generado
+        uses: actions/upload-artifact@v4
+        with:
+          name: RadioBossMobile-DebugAPK
+          path: Radioboss/app/build/outputs/apk/debug/app-debug.apk
