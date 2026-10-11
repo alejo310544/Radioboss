@@ -3,7 +3,8 @@ name: Compilar RadioVoz Movil
 
 on:
   push:
-    branches: [main]
+    branches:
+      - main
   workflow_dispatch:
 
 permissions:
@@ -29,28 +30,80 @@ jobs:
           channel: stable
           cache: true
 
-      - name: Extraer ZIP
+      - name: Instalar herramienta ZIP
         run: |
           sudo apt-get update
           sudo apt-get install -y unzip
-          mkdir project
-          unzip -q RadioVozMovil_GitHub.zip -d project
 
-      - name: Preparar Android
-        working-directory: project
-        run: flutter create --platforms=android --org com.radiovoz .
+      - name: Buscar y extraer ZIP
+        shell: bash
+        run: |
+          set -e
+
+          echo "Buscando archivos ZIP en el repositorio..."
+
+          find . -type f -iname "*.zip" -print
+
+          ZIP_FILE=$(find . -type f -iname "*.zip" \
+            ! -path "./.git/*" -print -quit)
+
+          if [ -z "$ZIP_FILE" ]; then
+            echo "::error::No se encontró ningún ZIP."
+            echo "Sube el ZIP de RadioVoz Móvil al repositorio."
+            exit 1
+          fi
+
+          echo "ZIP encontrado: $ZIP_FILE"
+
+          mkdir -p project
+
+          unzip -o "$ZIP_FILE" -d project
+
+          echo "Contenido extraído:"
+          find project -maxdepth 3 -type f | head -200
+
+      - name: Localizar proyecto Flutter
+        shell: bash
+        run: |
+          set -e
+
+          PUBSPEC=$(find project -name pubspec.yaml \
+            -type f -print -quit)
+
+          if [ -z "$PUBSPEC" ]; then
+            echo "::error::El ZIP no contiene pubspec.yaml."
+            exit 1
+          fi
+
+          PROJECT_DIR=$(dirname "$PUBSPEC")
+
+          echo "Proyecto Flutter encontrado en: $PROJECT_DIR"
+          echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
+
+      - name: Preparar estructura Android
+        run: |
+          if [ ! -f "$PROJECT_DIR/android/gradlew" ]; then
+            flutter create \
+              --platforms=android \
+              --org com.radiovoz \
+              "$PROJECT_DIR"
+          fi
 
       - name: Descargar dependencias
-        working-directory: project
-        run: flutter pub get
+        working-directory: .
+        run: |
+          cd "$PROJECT_DIR"
+          flutter pub get
 
       - name: Compilar APK
-        working-directory: project
-        run: flutter build apk --release
+        run: |
+          cd "$PROJECT_DIR"
+          flutter build apk --release
 
       - name: Publicar APK
         uses: actions/upload-artifact@v4
         with:
           name: RadioVoz-Movil-APK
-          path: project/build/app/outputs/flutter-apk/app-release.apk
+          path: ${{ env.PROJECT_DIR }}/build/app/outputs/flutter-apk/app-release.apk
           if-no-files-found: error
+          retention-days: 7
