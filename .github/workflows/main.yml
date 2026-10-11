@@ -24,20 +24,25 @@ jobs:
         with:
           gradle-version: '8.0'
 
-      - name: Limpiar y Extraer ZIP Oficial
+      - name: Limpiar, Extraer y Reparar Todo el Repositorio
         run: |
-          # 1. Eliminar carpetas sueltas viejas para evitar conflictos
+          # 1. Eliminar carpetas sueltas viejas de la raíz para evitar choques
           rm -rf app build.gradle settings.gradle gradle.properties
 
-          # 2. Descomprimir el ZIP que acabas de subir
+          # 2. Descomprimir el archivo ZIP subido
           mkdir -p temp_extracted
           unzip -q RadioBossMobile_Project.zip -d temp_extracted/
-
-          # 3. Mover los archivos limpios a la raíz de compilación
-          cp -r temp_extracted/* . || cp -r temp_extracted/RadioBossMobile_Project/* . || true
+          
+          # 3. Mover de forma forzada todo lo que estaba dentro del ZIP a la raíz del servidor
+          cp -r temp_extracted/* . || true
+          # Si los archivos estaban metidos dentro de otra subcarpeta dentro del ZIP, los movemos también
+          SUB_DIR=$(find temp_extracted -maxdepth 2 -name "app" -type d -exec dirname {} \; | head -n 1)
+          if [ ! -z "$SUB_DIR" ]; then
+            cp -r $SUB_DIR/* . || true
+          fi
           rm -rf temp_extracted
 
-          # 4. Forzar la creación de la configuración limpia de Gradle
+          # 4. Crear archivos de configuración de Gradle limpios y estables en la raíz
           echo "pluginManagement { repositories { google(); mavenCentral(); gradlePluginPortal() } }" > settings.gradle
           echo "dependencyResolutionManagement { repositoriesMode.set(RepositoriesMode.PREFER_SETTINGS); repositories { google(); mavenCentral() } }" >> settings.gradle
           echo "rootProject.name = 'Radioboss'" >> settings.gradle
@@ -49,9 +54,8 @@ jobs:
           echo "android.useAndroidX=true" > gradle.properties
           echo "android.enableJetifier=true" >> gradle.properties
 
-          # 5. Sobrescribir el manifiesto roto por el correcto con permisos de radio
-          mkdir -p app/src/main
-          echo "<?xml version='1.0' encoding='utf-8'?>
+          # 5. REPARACIÓN ABSOLUTA: Buscar y corregir CUALQUIER archivo Manifest dañado que exista en el servidor
+          MANIFEST_TEMPLATE="<?xml version='1.0' encoding='utf-8'?>
           <manifest xmlns:android='http://android.com'>
               <uses-permission android:name='android.permission.INTERNET' />
               <uses-permission android:name='android.permission.RECORD_AUDIO' />
@@ -69,7 +73,17 @@ jobs:
                       </intent-filter>
                   </activity>
               </application>
-          </manifest>" > app/src/main/AndroidManifest.xml
+          </manifest>"
+
+          # Encontrar todos los AndroidManifest.xml del repositorio y reemplazarlos con la versión limpia
+          find . -name "AndroidManifest.xml" -type f | while read -r manifest_file; do
+              echo "Reparando manifiesto en: $manifest_file"
+              echo "$MANIFEST_TEMPLATE" > "$manifest_file"
+          done
+
+          # Asegurar que exista al menos en la ruta estándar por si acaso
+          mkdir -p app/src/main
+          echo "$MANIFEST_TEMPLATE" > app/src/main/AndroidManifest.xml
 
       - name: Compilar APK con Gradle
         run: gradle assembleDebug --no-daemon
@@ -78,4 +92,6 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: RadioBossMobile-APK
-          path: app/build/outputs/apk/debug/app-debug.apk
+          path: |
+            app/build/outputs/apk/debug/app-debug.apk
+            **/build/outputs/apk/debug/app-debug.apk
