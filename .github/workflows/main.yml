@@ -24,6 +24,11 @@ jobs:
         with:
           gradle-version: '8.0'
 
+      - name: Agregar Repositorios de Google a Gradle
+        run: |
+          mkdir -p ~/.gradle
+          echo "allprojects { repositories { google(); mavenCentral() } }" > ~/.gradle/init.gradle
+
       - name: Compilar APK con Gradle
         run: gradle assembleDebug
 
