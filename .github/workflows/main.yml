@@ -19,17 +19,12 @@ jobs:
           distribution: 'zulu'
           java-version: '11'
 
-      - name: Instalar Gradle compatible de forma manual
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y wget unzip
-          wget https://gradle.org
-          sudo mkdir /opt/gradle
-          sudo unzip -d /opt/gradle gradle-7.5-bin.zip
-          export PATH=$PATH:/opt/gradle/gradle-7.5/bin
-          echo "/opt/gradle/gradle-7.5/bin" >> $GITHUB_PATH
+      - name: Configurar Gradle Oficialmente
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '7.5'
 
-      - name: Compilar APK con Gradle compatible
+      - name: Compilar APK con Gradle
         run: gradle assembleDebug
 
       - name: Subir el archivo APK generado
