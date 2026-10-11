@@ -24,25 +24,29 @@ jobs:
         with:
           gradle-version: '8.0'
 
-      - name: Limpiar, Extraer y Reparar Todo el Repositorio
+      - name: Limpieza Radical y Reconstruccion Absoluta
         run: |
-          # 1. Eliminar carpetas sueltas viejas de la raíz para evitar choques
-          rm -rf app build.gradle settings.gradle gradle.properties
+          # 1. Copiar el archivo ZIP a un lugar seguro fuera del repositorio temporalmente
+          cp RadioBossMobile_Project.zip /tmp/RadioBossMobile_Project.zip
 
-          # 2. Descomprimir el archivo ZIP subido
-          mkdir -p temp_extracted
-          unzip -q RadioBossMobile_Project.zip -d temp_extracted/
+          # 2. BORRADO TOTAL: Eliminar absolutamente todo lo que hay en el directorio de trabajo
+          # Esto destruye cualquier carpeta duplicada 'Radioboss' o 'radioboss' de raíz
+          rm -rf * .git*
+
+          # 3. Traer de regreso el ZIP limpio y extraerlo directamente en la raíz pura
+          cp /tmp/RadioBossMobile_Project.zip .
+          unzip -q RadioBossMobile_Project.zip
           
-          # 3. Mover de forma forzada todo lo que estaba dentro del ZIP a la raíz del servidor
-          cp -r temp_extracted/* . || true
-          # Si los archivos estaban metidos dentro de otra subcarpeta dentro del ZIP, los movemos también
-          SUB_DIR=$(find temp_extracted -maxdepth 2 -name "app" -type d -exec dirname {} \; | head -n 1)
-          if [ ! -z "$SUB_DIR" ]; then
-            cp -r $SUB_DIR/* . || true
+          # Si los archivos venían dentro de una subcarpeta interna en el ZIP, los sacamos a la raíz
+          if [ -d "RadioBossMobile_Project" ]; then
+            cp -r RadioBossMobile_Project/* .
+            rm -rf RadioBossMobile_Project
           fi
-          rm -rf temp_extracted
 
-          # 4. Crear archivos de configuración de Gradle limpios y estables en la raíz
+          # Asegurar destrucción total de carpetas fantasmas clonadas antes
+          rm -rf Radioboss radioboss RadioBossMobile_Project.zip
+
+          # 4. Crear archivos de configuración de Gradle milimétricamente perfectos
           echo "pluginManagement { repositories { google(); mavenCentral(); gradlePluginPortal() } }" > settings.gradle
           echo "dependencyResolutionManagement { repositoriesMode.set(RepositoriesMode.PREFER_SETTINGS); repositories { google(); mavenCentral() } }" >> settings.gradle
           echo "rootProject.name = 'Radioboss'" >> settings.gradle
@@ -54,8 +58,9 @@ jobs:
           echo "android.useAndroidX=true" > gradle.properties
           echo "android.enableJetifier=true" >> gradle.properties
 
-          # 5. REPARACIÓN ABSOLUTA: Buscar y corregir CUALQUIER archivo Manifest dañado que exista en el servidor
-          MANIFEST_TEMPLATE="<?xml version='1.0' encoding='utf-8'?>
+          # 5. REESCRITURA INYECTABLE: Crear el manifiesto limpio con los permisos de radio correctos
+          mkdir -p app/src/main
+          echo "<?xml version='1.0' encoding='utf-8'?>
           <manifest xmlns:android='http://android.com'>
               <uses-permission android:name='android.permission.INTERNET' />
               <uses-permission android:name='android.permission.RECORD_AUDIO' />
@@ -73,25 +78,13 @@ jobs:
                       </intent-filter>
                   </activity>
               </application>
-          </manifest>"
+          </manifest>" > app/src/main/AndroidManifest.xml
 
-          # Encontrar todos los AndroidManifest.xml del repositorio y reemplazarlos con la versión limpia
-          find . -name "AndroidManifest.xml" -type f | while read -r manifest_file; do
-              echo "Reparando manifiesto en: $manifest_file"
-              echo "$MANIFEST_TEMPLATE" > "$manifest_file"
-          done
-
-          # Asegurar que exista al menos en la ruta estándar por si acaso
-          mkdir -p app/src/main
-          echo "$MANIFEST_TEMPLATE" > app/src/main/AndroidManifest.xml
-
-      - name: Compilar APK con Gradle
+      - name: Compilar APK con Gradle (Entorno Limpio)
         run: gradle assembleDebug --no-daemon
 
       - name: Subir el archivo APK generado
         uses: actions/upload-artifact@v4
         with:
           name: RadioBossMobile-APK
-          path: |
-            app/build/outputs/apk/debug/app-debug.apk
-            **/build/outputs/apk/debug/app-debug.apk
+          path: app/build/outputs/apk/debug/app-debug.apk
