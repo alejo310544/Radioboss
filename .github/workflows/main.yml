@@ -24,10 +24,10 @@ jobs:
         with:
           gradle-version: '8.0'
 
-      - name: Reconstruir Archivos Gradle en la Ruta Profunda Correcta
+      - name: Reconstruir Archivos Gradle en la Ruta Real en Minúsculas
         run: |
-          # 1. Definir la ruta real exacta que está leyendo tu proyecto
-          R_PATH="Radioboss"
+          # 1. Definir la ruta real exacta en minúsculas
+          R_PATH="radioboss"
 
           # 2. Intentar buscar el nombre de paquete real en el Java existente
           PACKAGE_NAME=$(grep -r "package " $R_PATH/app/src/main/java/ | head -n 1 | awk '{print $2}' | sed 's/;//')
@@ -65,7 +65,7 @@ jobs:
           echo "android.useAndroidX=true" > $R_PATH/gradle.properties
           echo "android.enableJetifier=true" >> $R_PATH/gradle.properties
 
-          # 7. ELIMINAR EL MANIFEST DAÑADO Y CREAR EL NUEVO EN LA RUTA PROFUNDA (SOLUCIÓN CRÍTICA)
+          # 7. Reemplazar el manifest defectuoso en la ruta correcta en minúsculas
           rm -f $R_PATH/app/src/main/AndroidManifest.xml
           mkdir -p $R_PATH/app/src/main
           echo "<?xml version='1.0' encoding='utf-8'?>
@@ -97,11 +97,11 @@ jobs:
 
       - name: Compilar APK con Gradle desde la subcarpeta real
         run: |
-          cd Radioboss
+          cd radioboss
           gradle assembleDebug --no-daemon
 
       - name: Subir el archivo APK generado
         uses: actions/upload-artifact@v4
         with:
           name: RadioBossMobile-DebugAPK
-          path: Radioboss/app/build/outputs/apk/debug/app-debug.apk
+          path: radioboss/app/build/outputs/apk/debug/app-debug.apk
