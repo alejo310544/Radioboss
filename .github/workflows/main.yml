@@ -24,84 +24,58 @@ jobs:
         with:
           gradle-version: '8.0'
 
-      - name: Reconstruir Archivos Gradle en la Ruta Real en Minúsculas
+      - name: Limpiar y Extraer ZIP Oficial
         run: |
-          # 1. Definir la ruta real exacta en minúsculas
-          R_PATH="radioboss"
+          # 1. Eliminar carpetas sueltas viejas para evitar conflictos
+          rm -rf app build.gradle settings.gradle gradle.properties
 
-          # 2. Intentar buscar el nombre de paquete real en el Java existente
-          PACKAGE_NAME=$(grep -r "package " $R_PATH/app/src/main/java/ | head -n 1 | awk '{print $2}' | sed 's/;//')
-          if [ -z "$PACKAGE_NAME" ]; then
-            PACKAGE_NAME="com.radioboss.mobile"
-          fi
-          echo "El paquete detectado es: $PACKAGE_NAME"
+          # 2. Descomprimir el ZIP que acabas de subir
+          mkdir -p temp_extracted
+          unzip -q RadioBossMobile_Project.zip -d temp_extracted/
 
-          # 3. Generar settings.gradle perfecto en la subcarpeta
-          echo "pluginManagement { repositories { google(); mavenCentral(); gradlePluginPortal() } }" > $R_PATH/settings.gradle
-          echo "dependencyResolutionManagement { repositoriesMode.set(RepositoriesMode.PREFER_SETTINGS); repositories { google(); mavenCentral() } }" >> $R_PATH/settings.gradle
-          echo "rootProject.name = 'Radioboss'" >> $R_PATH/settings.gradle
-          echo "include ':app'" >> $R_PATH/settings.gradle
+          # 3. Mover los archivos limpios a la raíz de compilación
+          cp -r temp_extracted/* . || cp -r temp_extracted/RadioBossMobile_Project/* . || true
+          rm -rf temp_extracted
 
-          # 4. Generar build.gradle raíz perfecto en la subcarpeta
-          echo "buildscript { repositories { google(); mavenCentral() }; dependencies { classpath 'com.android.tools.build:gradle:8.0.2' } }" > $R_PATH/build.gradle
-          echo "allprojects { repositories { google(); mavenCentral() } }" >> $R_PATH/build.gradle
+          # 4. Forzar la creación de la configuración limpia de Gradle
+          echo "pluginManagement { repositories { google(); mavenCentral(); gradlePluginPortal() } }" > settings.gradle
+          echo "dependencyResolutionManagement { repositoriesMode.set(RepositoriesMode.PREFER_SETTINGS); repositories { google(); mavenCentral() } }" >> settings.gradle
+          echo "rootProject.name = 'Radioboss'" >> settings.gradle
+          echo "include ':app'" >> settings.gradle
 
-          # 5. Generar app/build.gradle limpio en la subcarpeta
-          echo "plugins { id 'com.android.application' }
-          android {
-              namespace '$PACKAGE_NAME'
-              compileSdk 33
-              defaultConfig { applicationId '$PACKAGE_NAME'; minSdk 21; targetSdk 33; versionCode 1; versionName '1.0' }
-              buildTypes { release { minifyEnabled false } }
-              lintOptions { abortOnError false; checkReleaseBuilds false }
-          }
-          dependencies {
-              implementation 'androidx.appcompat:appcompat:1.6.1'
-              implementation 'com.google.android.material:material:1.9.0'
-              implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
-          }" > $R_PATH/app/build.gradle
+          echo "buildscript { repositories { google(); mavenCentral() }; dependencies { classpath 'com.android.tools.build:gradle:8.0.2' } }" > build.gradle
+          echo "allprojects { repositories { google(); mavenCentral() } }" >> build.gradle
 
-          # 6. Crear archivo gradle.properties de compatibilidad en la subcarpeta
-          echo "android.useAndroidX=true" > $R_PATH/gradle.properties
-          echo "android.enableJetifier=true" >> $R_PATH/gradle.properties
+          echo "android.useAndroidX=true" > gradle.properties
+          echo "android.enableJetifier=true" >> gradle.properties
 
-          # 7. Reemplazar el manifest defectuoso en la ruta correcta en minúsculas
-          rm -f $R_PATH/app/src/main/AndroidManifest.xml
-          mkdir -p $R_PATH/app/src/main
+          # 5. Sobrescribir el manifiesto roto por el correcto con permisos de radio
+          mkdir -p app/src/main
           echo "<?xml version='1.0' encoding='utf-8'?>
           <manifest xmlns:android='http://android.com'>
-              
               <uses-permission android:name='android.permission.INTERNET' />
               <uses-permission android:name='android.permission.RECORD_AUDIO' />
               <uses-permission android:name='android.permission.MODIFY_AUDIO_SETTINGS' />
               <uses-permission android:name='android.permission.READ_EXTERNAL_STORAGE' />
-
               <application
                   android:allowBackup='true'
-                  android:icon='@mipmap/ic_launcher'
                   android:label='Radio Boss Mobile'
-                  android:roundIcon='@mipmap/ic_launcher_round'
                   android:supportsRtl='true'
                   android:theme='@style/Theme.AppCompat.Light.NoActionBar'>
-                  
-                  <activity
-                      android:name='.MainActivity'
-                      android:exported='true'>
+                  <activity android:name='.MainActivity' android:exported='true'>
                       <intent-filter>
                           <action android:name='android.intent.action.MAIN' />
                           <category android:name='android.intent.category.LAUNCHER' />
                       </intent-filter>
                   </activity>
               </application>
-          </manifest>" > $R_PATH/app/src/main/AndroidManifest.xml
+          </manifest>" > app/src/main/AndroidManifest.xml
 
-      - name: Compilar APK con Gradle desde la subcarpeta real
-        run: |
-          cd radioboss
-          gradle assembleDebug --no-daemon
+      - name: Compilar APK con Gradle
+        run: gradle assembleDebug --no-daemon
 
       - name: Subir el archivo APK generado
         uses: actions/upload-artifact@v4
         with:
-          name: RadioBossMobile-DebugAPK
-          path: radioboss/app/build/outputs/apk/debug/app-debug.apk
+          name: RadioBossMobile-APK
+          path: app/build/outputs/apk/debug/app-debug.apk
