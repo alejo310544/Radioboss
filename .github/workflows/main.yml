@@ -1,3 +1,4 @@
+
 name: Compilar RadioBos1 APK
 
 on:
@@ -21,29 +22,47 @@ jobs:
           distribution: temurin
           java-version: "17"
 
-      - name: Configurar Android SDK
+      - name: Preparar Android SDK
         uses: android-actions/setup-android@v3
+        continue-on-error: true
 
-      - name: Instalar componentes Android
+      - name: Instalar componentes del SDK
+        shell: bash
         run: |
-          yes | sdkmanager --licenses || true
-          sdkmanager "platform-tools" "platforms;android-35" "build-tools;35.0.0"
+          SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
 
-      - name: Buscar y descomprimir ZIP
+          if [ ! -f "$SDKMANAGER" ]; then
+            SDKMANAGER="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager -print -quit)"
+          fi
+
+          if [ -z "$SDKMANAGER" ] || [ ! -f "$SDKMANAGER" ]; then
+            echo "::error::No se encontró sdkmanager en el SDK de Android."
+            exit 1
+          fi
+
+          yes | "$SDKMANAGER" --licenses || true
+          "$SDKMANAGER" "platform-tools" "platforms;android-35" "build-tools;35.0.0"
+
+      - name: Descomprimir RadioBos1.zip
         shell: bash
         run: |
           ZIP_PATH="$(find . -type f -name 'RadioBos1.zip' -not -path './.git/*' -print -quit)"
-
           if [ -z "$ZIP_PATH" ]; then
             echo "::error::No se encontró RadioBos1.zip"
             exit 1
           fi
-
           mkdir -p RadioBos1_source
           unzip -o "$ZIP_PATH" -d RadioBos1_source
 
-      - name: Compilar proyecto Android
+      - name: Compilar aplicación
         shell: bash
         run: |
           cd RadioBos1_source
-          gradle --version
+          gradle assembleDebug --no-daemon --stacktrace
+
+      - name: Publicar APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: RadioBos1-APK
+          path: RadioBos1_source/app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
