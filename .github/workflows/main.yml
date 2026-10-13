@@ -1,0 +1,63 @@
+
+name: Compilar RadioBos1 APK
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "RadioBos1.zip"
+      - ".github/workflows/main.yml"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Descargar repositorio
+        uses: actions/checkout@v4
+
+      - name: Configurar Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Configurar Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Buscar y descomprimir ZIP
+        shell: bash
+        run: |
+          ZIP_PATH="$(find . -type f -name 'RadioBos1.zip' -not -path './.git/*' -print -quit)"
+
+          if [ -z "$ZIP_PATH" ]; then
+            echo "::error::No se encontró RadioBos1.zip"
+            find . -type f -iname '*.zip' -not -path './.git/*' -print
+            exit 1
+          fi
+
+          mkdir -p RadioBos1_source
+          unzip -o "$ZIP_PATH" -d RadioBos1_source
+
+      - name: Buscar proyecto Gradle y compilar
+        shell: bash
+        run: |
+          GRADLEW_PATH="$(find RadioBos1_source -type f -name gradlew -print -quit)"
+
+          if [ -z "$GRADLEW_PATH" ]; then
+            echo "::error::No se encontró gradlew dentro del ZIP"
+            find RadioBos1_source -maxdepth 4 -type f -print
+            exit 1
+          fi
+
+          PROJECT_DIR="$(dirname "$GRADLEW_PATH")"
+          chmod +x "$GRADLEW_PATH"
+          cd "$PROJECT_DIR"
+          ./gradlew assembleDebug --stacktrace
+
+      - name: Subir APK generado
+        uses: actions/upload-artifact@v4
+        with:
+          name: RadioBos1-APK
+          path: RadioBos1_source/**/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
